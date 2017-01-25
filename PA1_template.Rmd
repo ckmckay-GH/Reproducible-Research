@@ -1,0 +1,165 @@
+---
+title: "Coursera"
+author: "Charles McKay"
+date: "1/23/2017"
+output: html_document
+---
+
+## Reproducible Research: Week 2 Assignment
+### Setup r environment
+Load packages
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r environment}
+install.packages("timeDate", repos = "http://cran.us.r-project.org")
+library(timeDate)
+library(plyr)
+library(dplyr)
+library(data.table)
+```
+
+### Load and preprocess the data
+* Read in file
+* Add "time" column with converted "interval" column values to time format
+* Add "day" column to dipllay week day based on date column values
+* Add "wday" logical column TRUE FALSE for is day a weekend on not
+
+```{r process}
+step_data <- read.csv("activity.csv")
+step_data$time <- substr(as.POSIXct(sprintf("%04.0f", step_data$interval), format='%H%M'), 12, 16)
+step_data$time <- as.POSIXct(step_data$time,format="%H:%M")
+step_data$day <- weekdays(as.Date(step_data$date))
+step_data$subset_key <- paste(step_data$day, step_data$interval, sep="_")
+```
+
+## Assigment Questions
+### What is mean total number of steps taken per day?
+
+Calculate total steps per day and mean and median steps per day
+
+```{r calculate}
+steps_day <- group_by(step_data, date)
+steps_sum <- summarize(steps_day, day_sum = sum(steps, na.rm = TRUE))
+steps_sum_mean <- mean(steps_sum$day_sum)
+steps_sum_median <- median(steps_sum$day_sum)
+```
+
+Display histogram of total steps per day
+
+```{r histogram, echo=FALSE}
+hist(steps_sum$day_sum, breaks = 10, col = "green", 
+     main="Histogram of Total Steps Per Day", xlab = "Total Steps Per Day")
+```
+
+Mean and median of the total number of steps taken per day
+```{r}
+## Mean steps per day
+steps_sum_mean
+
+## Median steps per day
+steps_sum_median
+```
+
+### What is the average daily activity pattern?  
+```{r steps by time}
+steps_interval <- group_by(step_data, time)
+steps_by_time <- summarize(steps_interval, time_mean = mean(steps, na.rm = TRUE))
+plot(steps_by_time$time, steps_by_time$time_mean, main="Average Steps Per 5 Minute Interval",
+        xlab="Time of Day", ylab="Average Steps", col = "red", type = "l")
+```
+
+Maximum average steps steps occur at time interval:
+```{r max}
+step_time_max <- steps_by_time[which.max(steps_by_time$time_mean),]
+format(step_time_max$time, "%H:%M")
+```
+
+### Imputing missing values
+1. Total number of rows with NAs
+```{r NAs}
+sum(is.na(step_data$steps))
+```
+2. New dataset with NAs replaced by imputed values
+* Create subset DF for NA rows
+* Create subset DF excluding NA rows
+* Calculate imputed value as average steps per day/interval combination
+* Substitute imputed value for NAs based on day/interval key
+* Combine xNA and NA imputed data file to create new DF
+```{r add imputed values}
+step_data_NA <- step_data[is.na(step_data$steps),]
+step_data_xNA <- step_data[!is.na(step_data$steps),]
+step_impute <- group_by(step_data, subset_key)
+step_impute_mean <- summarize(step_impute, impute_val = mean(steps, na.rm = TRUE))
+new_step_data <- merge(step_data_NA[,c("date", "interval" , "time", "day", 
+        "subset_key")], step_impute_mean, by= "subset_key")
+colnames(new_step_data)[6] <- "steps"
+new_step_data <- new_step_data[c(6,2,3,4,5,1)]
+new_step_data <- rbind(new_step_data, step_data_xNA)
+
+```
+
+3. Make a histogram of the total number of steps taken each day and
+calculate and report the mean and median total number of steps taken per day
+```{r calc with imputed data}
+new_steps_day <- group_by(new_step_data, date)
+new_steps_sum <- summarize(new_steps_day, new_day_sum = sum(steps))
+new_steps_sum_mean <- mean(new_steps_sum$new_day_sum)
+new_steps_sum_median <- median(new_steps_sum$new_day_sum)
+```
+* Histogram of total steps taken per day
+```{r new histogram}
+hist(new_steps_sum$new_day_sum, breaks = 10, col = "blue", 
+     main="Histogram of Total Steps Per Day (Imputed)", xlab = "Total Steps Per Day (Imputed)")
+```
+
+* Mean and median total number of steps taken per day
+```{r mean and median}
+## Mean steps per day
+new_steps_sum_mean
+
+## Median steps per day
+new_steps_sum_median
+```
+
+* Differences with the estimates from the first part of the assignment 
+After adding imputed values mean and median increased
+```{r differenced}
+## Mean steps per day difference
+new_steps_sum_mean - steps_sum_mean
+## Median steps per day difference
+new_steps_sum_median - steps_sum_median
+```
+
+* Impact of imputing missing data on the estimates of the total daily number of steps
+
+### Are there differences in activity patterns between weekdays and weekends?
+* Add weekday/weekend factor
+```{r weekday factor}
+new_step_data$wday = ifelse(new_step_data$day %in% c("Saturday", "Sunday"), "weekend", "weekday")
+new_step_data$wday <- as.factor(new_step_data$wday)
+```
+* Create panel plot to compare weekday avtivity vs. weekend activity
+```{r panel plot}
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+## weekday plot
+new_step_data_week <- filter(new_step_data, wday == "weekday")
+new_steps_interval_week <- group_by(new_step_data_week, time)
+new_steps_by_time_week <- summarize(new_steps_interval_week, new_time_mean_week = mean(steps))
+plot(new_steps_by_time_week$time, new_steps_by_time_week$new_time_mean_week,
+     main="Average Weekday Steps", xlab="Time of Day", ylab="Average Steps", 
+     col = "red", type = "l")
+## weekend plot
+new_step_data_wend <- filter(new_step_data, wday == "weekend")
+new_steps_interval_wend <- group_by(new_step_data_wend, time)
+new_steps_by_time_wend <- summarize(new_steps_interval_wend, new_time_mean_wend = mean(steps))
+plot(new_steps_by_time_wend$time, new_steps_by_time_wend$new_time_mean_wend,
+     main="Average Weekend Steps", xlab="Time of Day", ylab="Average Steps", 
+     col = "blue", type = "l")
+```
+
+* Weekend activity ramps up more slowly in the morning and is higher post 10:00 
+
+
