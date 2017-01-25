@@ -49,7 +49,7 @@ steps_sum_median <- median(steps_sum$day_sum)
 
 Display histogram of total steps per day
 
-```{r histogram, echo=FALSE}
+```{r histogram }
 hist(steps_sum$day_sum, breaks = 10, col = "green", 
      main="Histogram of Total Steps Per Day", xlab = "Total Steps Per Day")
 ```
@@ -143,7 +143,7 @@ new_step_data$wday <- as.factor(new_step_data$wday)
 ```
 * Create panel plot to compare weekday avtivity vs. weekend activity
 ```{r panel plot}
-par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 1))
 ## weekday plot
 new_step_data_week <- filter(new_step_data, wday == "weekday")
 new_steps_interval_week <- group_by(new_step_data_week, time)
